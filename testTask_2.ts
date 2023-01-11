@@ -8,26 +8,11 @@ export default async function run(executor: IExecutor, queue: AsyncIterable<ITas
     for await (const task of queue) {
         taskQueue.push(task);
     }
-    const runningTasks = new Map();
-
-    while (taskQueue.length > 0 || runningTasks.size > 0) {
-        if (runningTasks.size < maxThreads || maxThreads === 0) {
-            const task = taskQueue.shift();
-            if (!runningTasks.has(task?.targetId)) {
-                runningTasks.set(task?.targetId, task);
-                try {
-                    if (task) {
-                        const result =  await executor.executeTask(task);
-                        results.push(result);
-                    }
-                } catch (error) {
-                    console.log('Error from queue');
-                } finally {
-                    runningTasks.delete(task?.targetId);
-                }
-            }
-        }
-        await new Promise(resolve => setTimeout(resolve, 50));
+    while (taskQueue.length > 0) {
+        const currentTasks = taskQueue.splice(0, maxThreads);
+        const promises = currentTasks.map(task => executor.executeTask(task));
+        const taskResults = await Promise.all(promises);
+        results.push(...taskResults);
     }
     return results;
 }
